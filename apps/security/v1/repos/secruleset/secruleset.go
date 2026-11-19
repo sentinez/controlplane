@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package coreruleset
+package secruleset
 
 import (
 	"context"
@@ -25,60 +25,61 @@ import (
 	"github.com/sentinez/pkg/szstorage/dbx"
 	"github.com/sentinez/pkg/szstorage/dbx/postgres"
 	securitypb "github.com/sentinez/sentinez/api/proto/sentinez/apps/security/v1"
-	corerulesetpb "github.com/sentinez/sentinez/api/proto/sentinez/types/coreruleset/v1"
+	rulesetpb "github.com/sentinez/sentinez/api/proto/sentinez/types/ruleset/v1"
 	settingpb "github.com/sentinez/sentinez/api/proto/sentinez/types/setting/v1"
 	typepb "github.com/sentinez/sentinez/api/proto/sentinez/types/v1"
 	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/proto"
 )
 
-// The content column holds the proto JSON of the CRS setting: fields by
+// The setting column holds the proto JSON of the CRS setting: fields by
 // their proto name, enums by their value name. The list filters rely on
 // this encoding.
-var _marshalContent = protojson.MarshalOptions{UseProtoNames: true}
+var _marshalRuleset = protojson.MarshalOptions{UseProtoNames: true}
 
 // nolint
-type ICoreRuleset interface {
-	Create(ctx context.Context, model *securitypb.CoreRuleset) (*securitypb.CoreRuleset, error)
-	Update(ctx context.Context, model *securitypb.CoreRuleset, paths []string) error
-	Get(ctx context.Context, id string) (*securitypb.CoreRuleset, error)
+type ISecRuleset interface {
+	Create(ctx context.Context, model *securitypb.SecRuleset) (*securitypb.SecRuleset, error)
+	Update(ctx context.Context, model *securitypb.SecRuleset, paths []string) error
+	Get(ctx context.Context, id string) (*securitypb.SecRuleset, error)
 	Delete(ctx context.Context, id string) error
 
-	WithTX(tx *postgres.TxSession) ICoreRuleset
+	WithTX(tx *postgres.TxSession) ISecRuleset
 
-	List(ctx context.Context, req *securitypb.ListCoreRulesetsRequest) ([]*securitypb.CoreRuleset, int64, error)
+	List(ctx context.Context, req *securitypb.ListSecRulesetsRequest) ([]*securitypb.SecRuleset, int64, error)
 }
 
-var _ ICoreRuleset = (*CoreRuleset)(nil)
+var _ ISecRuleset = (*SecRuleset)(nil)
 
-// New creates a CoreRuleset repository backed by Postgres.
+// New creates a SecRuleset repository backed by Postgres.
 func New(
 	ctx context.Context, appConf *settingpb.Config,
-) (ICoreRuleset, error) {
-	storage, err := postgres.New[securitypb.CoreRuleset](ctx, appConf,
-		schema.SecurityCoreRulesets())
+) (ISecRuleset, error) {
+	storage, err := postgres.New[securitypb.SecRuleset](ctx, appConf,
+		schema.SecuritySecRulesets())
 	if err != nil {
 		return nil, err
 	}
 
-	return &CoreRuleset{
+	return &SecRuleset{
 		storage: storage,
 	}, nil
 }
 
-// CoreRuleset is the Postgres repository for OWASP CRS configurations.
-type CoreRuleset struct {
-	storage dbx.Database[securitypb.CoreRuleset]
+// SecRuleset is the Postgres repository for OWASP CRS configurations.
+type SecRuleset struct {
+	storage dbx.Database[securitypb.SecRuleset]
 }
 
-func (r *CoreRuleset) WithTX(tx *postgres.TxSession) ICoreRuleset {
-	return &CoreRuleset{
+func (r *SecRuleset) WithTX(tx *postgres.TxSession) ISecRuleset {
+	return &SecRuleset{
 		storage: postgres.WithTx(tx, r.storage),
 	}
 }
 
-func (r *CoreRuleset) List(ctx context.Context,
-	req *securitypb.ListCoreRulesetsRequest,
-) ([]*securitypb.CoreRuleset, int64, error) {
+func (r *SecRuleset) List(ctx context.Context,
+	req *securitypb.ListSecRulesetsRequest,
+) ([]*securitypb.SecRuleset, int64, error) {
 	conds, err := listConditions(req)
 	if err != nil {
 		return nil, 0, err
@@ -93,10 +94,10 @@ func (r *CoreRuleset) List(ctx context.Context,
 	if err != nil {
 		return nil, 0, err
 	}
-	szlog.Debug("[security.coreruleset] query: ", query, " args: ", args)
+	szlog.Debug("[security.secrulesets] query: ", query, " args: ", args)
 
 	models, err := r.storage.CollectRows(
-		ctx, builder, securitypb.ScanCoreRuleset)
+		ctx, builder, securitypb.ScanSecRuleset)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -114,7 +115,7 @@ func (r *CoreRuleset) List(ctx context.Context,
 }
 
 // total counts the rows matching the list conditions.
-func (r *CoreRuleset) total(
+func (r *SecRuleset) total(
 	ctx context.Context, conds []sq.Sqlizer,
 ) (int64, error) {
 	builder := postgres.CountBuilder(r.storage)
@@ -130,10 +131,10 @@ func (r *CoreRuleset) total(
 	return total, nil
 }
 
-func (r *CoreRuleset) Create(ctx context.Context,
-	model *securitypb.CoreRuleset) (*securitypb.CoreRuleset, error) {
-	model.Id = szrand.NewUUID(szprefix.CoreRuleset)
-	row, err := coreRulesetRow(model)
+func (r *SecRuleset) Create(ctx context.Context,
+	model *securitypb.SecRuleset) (*securitypb.SecRuleset, error) {
+	model.Id = szrand.NewUUID(szprefix.SecRuleset)
+	row, err := rulesetRow(model)
 	if err != nil {
 		return nil, err
 	}
@@ -147,25 +148,25 @@ func (r *CoreRuleset) Create(ctx context.Context,
 	return model, nil
 }
 
-func (r *CoreRuleset) Delete(ctx context.Context, id string) error {
+func (r *SecRuleset) Delete(ctx context.Context, id string) error {
 	return r.storage.Delete(ctx, id)
 }
 
-func (r *CoreRuleset) Get(
+func (r *SecRuleset) Get(
 	ctx context.Context,
 	id string,
-) (*securitypb.CoreRuleset, error) {
+) (*securitypb.SecRuleset, error) {
 	builder := r.selectQuery(nil).
-		Where(sq.Eq{securitypb.CoreRuleset_Id: id})
-	return r.storage.Select(ctx, builder, securitypb.ScanOneCoreRuleset)
+		Where(sq.Eq{securitypb.SecRuleset_Id: id})
+	return r.storage.Select(ctx, builder, securitypb.ScanOneSecRuleset)
 }
 
 // Update writes the columns of the fields of model paths names, as
 // szprotobuf.ApplyMask returns them; a path of no column is skipped.
-func (r *CoreRuleset) Update(ctx context.Context,
-	model *securitypb.CoreRuleset, paths []string) error {
+func (r *SecRuleset) Update(ctx context.Context,
+	model *securitypb.SecRuleset, paths []string) error {
 
-	row, err := coreRulesetRow(model)
+	row, err := rulesetRow(model)
 	if err != nil {
 		return err
 	}
@@ -177,9 +178,9 @@ func (r *CoreRuleset) Update(ctx context.Context,
 	return err
 }
 
-// coreRulesetRow the stored columns of model.
-func coreRulesetRow(model *securitypb.CoreRuleset) (postgres.M, error) {
-	content, err := marshalContent(model.GetContent())
+// rulesetRow the stored columns of model.
+func rulesetRow(model *securitypb.SecRuleset) (postgres.M, error) {
+	crsJSON, err := marshalRuleset(model.GetSetting())
 	if err != nil {
 		return nil, err
 	}
@@ -187,28 +188,35 @@ func coreRulesetRow(model *securitypb.CoreRuleset) (postgres.M, error) {
 	owner := model.GetOwner()
 
 	return postgres.M{
-		securitypb.CoreRuleset_Id:              model.GetId(),
-		securitypb.CoreRuleset_Name:            model.GetName(),
-		securitypb.CoreRuleset_Description:     model.GetDescription(),
-		securitypb.CoreRuleset_Content:         content,
-		securitypb.CoreRuleset_OwnerResourceId: owner.GetResourceId(),
-		securitypb.CoreRuleset_OwnerTenantId:   owner.GetTenantId(),
+		securitypb.SecRuleset_Id:              model.GetId(),
+		securitypb.SecRuleset_Name:            model.GetName(),
+		securitypb.SecRuleset_Description:     model.GetDescription(),
+		securitypb.SecRuleset_Setting:         crsJSON,
+		securitypb.SecRuleset_OwnerResourceId: owner.GetResourceId(),
+		securitypb.SecRuleset_OwnerTenantId:   owner.GetTenantId(),
 	}, nil
 }
 
-func (r *CoreRuleset) selectQuery(page *typepb.Pages) sq.SelectBuilder {
+func (r *SecRuleset) selectQuery(page *typepb.Pages) sq.SelectBuilder {
 	return postgres.SelectBuilder(r.storage, page,
-		securitypb.CoreRulesetColumns()...)
+		securitypb.SecRulesetColumns()...)
 }
 
-// marshalContent a setting without content is stored as an empty object,
-// so the content filters never meet a NULL.
-func marshalContent(content *corerulesetpb.CoreRuleset) (string, error) {
-	if content == nil {
+// marshalRuleset a nil setting is stored as an empty object,
+// so the setting filters never meet a NULL. An unset provider is stored
+// as PROVIDER_OWASP, the one the edge runs it with, so the provider
+// filter is a plain containment.
+func marshalRuleset(setting *rulesetpb.Setting) (string, error) {
+	if setting == nil {
 		return "{}", nil
 	}
 
-	data, err := _marshalContent.Marshal(content)
+	if setting.GetProvider() == rulesetpb.Provider_PROVIDER_UNSPECIFIED {
+		setting = proto.CloneOf(setting)
+		setting.Provider = rulesetpb.Provider_PROVIDER_OWASP
+	}
+
+	data, err := _marshalRuleset.Marshal(setting)
 	if err != nil {
 		return "", err
 	}

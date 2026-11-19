@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package coreruleset
+package secruleset
 
 import (
 	"strings"
@@ -20,7 +20,7 @@ import (
 
 	sq "github.com/Masterminds/squirrel"
 	securitypb "github.com/sentinez/sentinez/api/proto/sentinez/apps/security/v1"
-	corerulesetpb "github.com/sentinez/sentinez/api/proto/sentinez/types/coreruleset/v1"
+	rulesetpb "github.com/sentinez/sentinez/api/proto/sentinez/types/ruleset/v1"
 	typepb "github.com/sentinez/sentinez/api/proto/sentinez/types/v1"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -28,7 +28,7 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-type listReq = securitypb.ListCoreRulesetsRequest
+type listReq = securitypb.ListSecRulesetsRequest
 
 // nolint:funlen
 func TestListConditions(t *testing.T) {
@@ -59,83 +59,99 @@ func TestListConditions(t *testing.T) {
 		},
 		{
 			name: "modes",
-			give: &listReq{Modes: []corerulesetpb.EngineMode{
-				corerulesetpb.EngineMode_ENGINE_MODE_ON,
-				corerulesetpb.EngineMode_ENGINE_MODE_DETECTION_ONLY,
+			give: &listReq{Modes: []rulesetpb.EngineMode{
+				rulesetpb.EngineMode_ENGINE_MODE_ON,
+				rulesetpb.EngineMode_ENGINE_MODE_DETECTION_ONLY,
 			}},
-			wantSQL: "SELECT 1 WHERE " +
-				"(content @> ?::jsonb OR content @> ?::jsonb)",
+			wantSQL: "SELECT 1 WHERE (setting @> ?::jsonb OR " +
+				"setting @> ?::jsonb OR setting @> ?::jsonb OR " +
+				"setting @> ?::jsonb)",
 			wantArgs: []any{
-				`{"mode":"ENGINE_MODE_ON"}`,
-				`{"mode":"ENGINE_MODE_DETECTION_ONLY"}`,
+				`{"crs":{"mode":"ENGINE_MODE_ON"}}`,
+				`{"managed":{"mode":"ENGINE_MODE_ON"}}`,
+				`{"crs":{"mode":"ENGINE_MODE_DETECTION_ONLY"}}`,
+				`{"managed":{"mode":"ENGINE_MODE_DETECTION_ONLY"}}`,
 			},
 		},
 		{
-			name: "version",
-			give: &listReq{Versions: []corerulesetpb.Version{
-				corerulesetpb.Version_VERSION_V4_17_0,
+			name: "providers",
+			give: &listReq{Providers: []rulesetpb.Provider{
+				rulesetpb.Provider_PROVIDER_MANAGED,
 			}},
-			wantSQL:  "SELECT 1 WHERE (content @> ?::jsonb)",
-			wantArgs: []any{`{"version":"VERSION_V4_17_0"}`},
+			wantSQL:  "SELECT 1 WHERE (setting @> ?::jsonb)",
+			wantArgs: []any{`{"provider":"PROVIDER_MANAGED"}`},
+		},
+		{
+			name: "version",
+			give: &listReq{Versions: []rulesetpb.CRSVersion{
+				rulesetpb.CRSVersion_CRS_VERSION_V4_17_0,
+			}},
+			wantSQL:  "SELECT 1 WHERE (setting @> ?::jsonb)",
+			wantArgs: []any{`{"crs":{"version":"CRS_VERSION_V4_17_0"}}`},
 		},
 		{
 			name: "status",
 			give: &listReq{Statuses: []typepb.Status{
 				typepb.Status_STATUS_ACTIVE,
 			}},
-			wantSQL:  "SELECT 1 WHERE (content @> ?::jsonb)",
+			wantSQL:  "SELECT 1 WHERE (setting @> ?::jsonb)",
 			wantArgs: []any{`{"status":"STATUS_ACTIVE"}`},
 		},
 		{
 			name:     "paranoia level",
 			give:     &listReq{ParanoiaLevel: 2},
-			wantSQL:  "SELECT 1 WHERE (content @> ?::jsonb)",
-			wantArgs: []any{`{"paranoia_level":2}`},
+			wantSQL:  "SELECT 1 WHERE (setting @> ?::jsonb)",
+			wantArgs: []any{`{"crs":{"paranoia_level":2}}`},
 		},
 		{
 			name: "categories",
-			give: &listReq{Categories: []corerulesetpb.Category{
-				corerulesetpb.Category_CATEGORY_XSS,
-				corerulesetpb.Category_CATEGORY_SQLI,
+			give: &listReq{Categories: []rulesetpb.Category{
+				rulesetpb.Category_CATEGORY_XSS,
+				rulesetpb.Category_CATEGORY_SQLI,
 			}},
-			wantSQL: "SELECT 1 WHERE (content @> ?::jsonb)",
+			wantSQL: "SELECT 1 WHERE (setting @> ?::jsonb)",
 			wantArgs: []any{
-				`{"categories":["CATEGORY_XSS","CATEGORY_SQLI"]}`,
+				`{"crs":{"categories":["CATEGORY_XSS","CATEGORY_SQLI"]}}`,
 			},
 		},
 		{
-			name:     "exclusion tag",
-			give:     &listReq{ExclusionTags: []string{"attack-sqli"}},
-			wantSQL:  "SELECT 1 WHERE (content @> ?::jsonb)",
-			wantArgs: []any{`{"exclusions":[{"tags":["attack-sqli"]}]}`},
+			name:    "exclusion tag",
+			give:    &listReq{ExclusionTags: []string{"attack-sqli"}},
+			wantSQL: "SELECT 1 WHERE (setting @> ?::jsonb)",
+			wantArgs: []any{
+				`{"crs":{"exclusions":[{"tags":["attack-sqli"]}]}}`,
+			},
 		},
 		{
 			name:    "exclusion rule",
 			give:    &listReq{ExclusionRuleIds: []uint32{942100}},
-			wantSQL: "SELECT 1 WHERE (content @> ?::jsonb)",
+			wantSQL: "SELECT 1 WHERE (setting @> ?::jsonb)",
 			wantArgs: []any{
-				`{"exclusions":[{"targets":[{"rule_id":942100}]}]}`,
+				`{"crs":{"exclusions":[{"targets":[{"rule_id":942100}]}]}}`,
 			},
 		},
 		{
 			name:     "override rule",
 			give:     &listReq{OverrideRuleIds: []uint32{920420}},
-			wantSQL:  "SELECT 1 WHERE (content @> ?::jsonb)",
-			wantArgs: []any{`{"overrides":[{"id":920420}]}`},
+			wantSQL:  "SELECT 1 WHERE (setting @> ?::jsonb)",
+			wantArgs: []any{`{"crs":{"overrides":[{"id":920420}]}}`},
 		},
 		{
 			name: "filters are combined",
 			give: &listReq{
 				Name:          "prod",
 				ParanoiaLevel: 1,
-				Modes: []corerulesetpb.EngineMode{
-					corerulesetpb.EngineMode_ENGINE_MODE_ON,
+				Modes: []rulesetpb.EngineMode{
+					rulesetpb.EngineMode_ENGINE_MODE_ON,
 				},
 			},
 			wantSQL: "SELECT 1 WHERE name ILIKE ? " +
-				"AND (content @> ?::jsonb) AND (content @> ?::jsonb)",
+				"AND (setting @> ?::jsonb OR setting @> ?::jsonb) " +
+				"AND (setting @> ?::jsonb)",
 			wantArgs: []any{
-				"%prod%", `{"mode":"ENGINE_MODE_ON"}`, `{"paranoia_level":1}`,
+				"%prod%", `{"crs":{"mode":"ENGINE_MODE_ON"}}`,
+				`{"managed":{"mode":"ENGINE_MODE_ON"}}`,
+				`{"crs":{"paranoia_level":1}}`,
 			},
 		},
 	}
@@ -172,23 +188,38 @@ func normalize(args []any) []any {
 	return out
 }
 
-func TestContentRoundTrip(t *testing.T) {
-	give := &corerulesetpb.CoreRuleset{
-		Mode:          corerulesetpb.EngineMode_ENGINE_MODE_ON,
-		ParanoiaLevel: 2,
-		Exclusions: []*corerulesetpb.Exclusion{
-			{Tags: []string{"attack-sqli"}},
+func TestRulesetRoundTrip(t *testing.T) {
+	give := &rulesetpb.Setting{
+		Provider: rulesetpb.Provider_PROVIDER_MANAGED,
+		Crs: &rulesetpb.Crs{
+			Mode:          rulesetpb.EngineMode_ENGINE_MODE_ON,
+			ParanoiaLevel: 2,
+			Exclusions: []*rulesetpb.Exclusion{
+				{Tags: []string{"attack-sqli"}},
+			},
 		},
 	}
 
-	data, err := marshalContent(give)
+	data, err := marshalRuleset(give)
 	require.NoError(t, err)
 
-	got := &corerulesetpb.CoreRuleset{}
+	got := &rulesetpb.Setting{}
 	require.NoError(t, protojson.Unmarshal([]byte(data), got))
 	assert.True(t, proto.Equal(give, got))
 
-	empty, err := marshalContent(nil)
+	empty, err := marshalRuleset(nil)
 	require.NoError(t, err)
 	assert.Equal(t, "{}", empty)
+}
+
+func TestRulesetUnsetProviderIsOwasp(t *testing.T) {
+	give := &rulesetpb.Setting{Status: typepb.Status_STATUS_ACTIVE}
+
+	data, err := marshalRuleset(give)
+
+	require.NoError(t, err)
+	assert.JSONEq(t,
+		`{"status":"STATUS_ACTIVE","provider":"PROVIDER_OWASP"}`, data)
+	assert.Equal(t, rulesetpb.Provider_PROVIDER_UNSPECIFIED,
+		give.GetProvider(), "the setting of the caller is not changed")
 }

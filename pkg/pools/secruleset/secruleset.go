@@ -12,27 +12,27 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package coreruleset pools the core ruleset events of the collector.
-package coreruleset
+// Package secruleset pools the ruleset events of the collector.
+package secruleset
 
 import (
 	"github.com/sentinez/controlplane/pkg/pools"
-	crspb "github.com/sentinez/sentinez/api/proto/sentinez/types/coreruleset/v1"
+	rulesetpb "github.com/sentinez/sentinez/api/proto/sentinez/types/ruleset/v1"
 )
 
-var _pool = pools.New(crspb.CoreRuleEventFromVTPool)
+var _pool = pools.New(rulesetpb.SecRulesetEventFromVTPool)
 
-// Pool returns the pool of the crspb.CoreRuleEvent.
-func Pool() *pools.Pool[crspb.CoreRuleEvent, *crspb.CoreRuleEvent] {
+// Pool returns the pool of the rulesetpb.SecRulesetEvent.
+func Pool() *pools.Pool[rulesetpb.SecRulesetEvent, *rulesetpb.SecRulesetEvent] {
 	return _pool
 }
 
-// Acquire returns a cleared crspb.CoreRuleEvent.
-func Acquire() *crspb.CoreRuleEvent {
+// Acquire returns a cleared rulesetpb.SecRulesetEvent.
+func Acquire() *rulesetpb.SecRulesetEvent {
 	return _pool.Acquire()
 }
 
 // Release resets obj and puts it back in the pool.
-func Release(obj *crspb.CoreRuleEvent) {
+func Release(obj *rulesetpb.SecRulesetEvent) {
 	_pool.Release(obj)
 }
